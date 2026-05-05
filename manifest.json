@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Ariel",
+  "version": "0.0.1",
+  "description": "Side Panel AI 助手 — 捕获页面 DOM 和 API 请求，通过自然语言分析网页内容",
+  "permissions": ["storage", "sidePanel", "activeTab", "scripting"],
+  "side_panel": {
+    "default_path": "src/sidepanel/index.html"
+  },
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/bridge.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/index.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ],
+  "action": {
+    "default_title": "打开 Ariel"
+  }
+}

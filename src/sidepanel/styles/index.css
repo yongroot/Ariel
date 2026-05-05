@@ -1,0 +1,111 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* Ariel CSS variable theming — all values dynamically set by JS */
+/* :root values are fallback only for initial render before JS runs */
+:root {
+  --ap-bg-primary: #18181b;
+  --ap-bg-secondary: #27272a;
+  --ap-bg-tertiary: #3f3f46;
+  --ap-text-primary: #fafafa;
+  --ap-text-secondary: #a1a1aa;
+  --ap-text-muted: #71717a;
+  --ap-border: #3f3f46;
+  --ap-accent: #3b82f6;
+  --ap-accent-hover: #2563eb;
+  --ap-accent-text: #ffffff;
+  --ap-user-bubble: #2563eb;
+  --ap-ai-bubble: #27272a;
+  --ap-code-bg: #09090b;
+  --ap-input-bg: #27272a;
+  --ap-input-border: #3f3f46;
+}
+
+/* ── Markdown / Prose overrides ── */
+.prose {
+  --tw-prose-body: var(--ap-text-primary);
+  --tw-prose-headings: var(--ap-text-primary);
+  --tw-prose-lead: var(--ap-text-secondary);
+  --tw-prose-links: var(--ap-accent);
+  --tw-prose-bold: var(--ap-text-primary);
+  --tw-prose-counters: var(--ap-text-muted);
+  --tw-prose-bullets: var(--ap-text-muted);
+  --tw-prose-hr: var(--ap-border);
+  --tw-prose-quotes: var(--ap-text-secondary);
+  --tw-prose-quote-borders: var(--ap-accent);
+  --tw-prose-captions: var(--ap-text-muted);
+  --tw-prose-kbd: var(--ap-text-primary);
+  --tw-prose-kbd-shadows: var(--ap-bg-primary);
+  --tw-prose-code: var(--ap-accent);
+  --tw-prose-pre-code: var(--ap-text-primary);
+  --tw-prose-pre-bg: var(--ap-code-bg);
+  --tw-prose-th-borders: var(--ap-border);
+  --tw-prose-td-borders: var(--ap-border);
+}
+
+/* Code blocks: override hljs padding to match prose */
+.prose pre {
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+
+/* Inline code */
+.prose :not(pre) > code {
+  border-radius: 0.25rem;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.85em;
+}
+
+/* Links */
+.prose a {
+  text-decoration-color: color-mix(in srgb, var(--ap-accent) 40%, transparent);
+  transition: color 0.15s, text-decoration-color 0.15s;
+}
+.prose a:hover {
+  color: var(--ap-accent-hover);
+  text-decoration-color: var(--ap-accent-hover);
+}
+
+/* Blockquotes */
+.prose blockquote {
+  border-left-color: var(--ap-accent);
+  background: color-mix(in srgb, var(--ap-accent) 6%, transparent);
+  border-radius: 0 0.375rem 0.375rem 0;
+  padding: 0.5rem 0.75rem;
+}
+
+/* Tables */
+.prose table {
+  font-size: 0.85em;
+}
+.prose thead th {
+  background: var(--ap-bg-tertiary);
+  font-weight: 600;
+}
+.prose tbody tr:hover {
+  background: color-mix(in srgb, var(--ap-bg-tertiary) 50%, transparent);
+}
+
+/* Horizontal rule */
+.prose hr {
+  border-color: var(--ap-border);
+}
+
+/* Lists: tighter spacing in chat context */
+.prose ul, .prose ol {
+  padding-left: 1.25em;
+}
+.prose li {
+  margin-top: 0.2em;
+  margin-bottom: 0.2em;
+}
+
+/* Headings: keep compact in chat */
+.prose h1, .prose h2, .prose h3 {
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+}
+.prose h4, .prose h5, .prose h6 {
+  margin-top: 0.8em;
+  margin-bottom: 0.3em;
+}

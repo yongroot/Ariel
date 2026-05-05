@@ -1,0 +1,38 @@
+{
+  "name": "ariel",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Side Panel AI 助手 — 捕获页面 DOM 和 API 请求，通过自然语言分析网页内容",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@tailwindcss/typography": "^0.5.19",
+    "highlight.js": "^11.11.1",
+    "marked": "^18.0.3",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "zod": "^4.4.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@tailwindcss/vite": "^4.2.4",
+    "@types/chrome": "^0.1.40",
+    "@types/marked": "^5.0.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "puppeteer-core": "^24.42.0",
+    "tailwindcss": "^4.2.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10",
+    "vite-plugin-web-extension": "^4.5.1",
+    "vitest": "^4.1.5"
+  }
+}
