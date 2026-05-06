@@ -392,13 +392,6 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
         className="flex-1 overflow-y-auto p-3"
         onScroll={handleScroll}
       >
-        {/* 空状态：居中显示 */}
-        {isEmpty && (
-          <div className="flex h-full items-center justify-center text-sm" style={{ color: "var(--ap-text-muted)" }}>
-            发送消息开始对话
-          </div>
-        )}
-
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} />
         ))}
@@ -463,12 +456,16 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
       )}
 
       {/* 输入栏 */}
-      <div className="px-2 pb-2">
-        <InputBar
-          onSend={handleSend}
-          onAbort={handleAbort}
-          isStreaming={isStreaming}
-        />
+      <div
+        className={`flex-shrink-0 px-2 pb-2 transition-all duration-500 ease-out ${isEmpty ? "absolute inset-0 flex items-center justify-center" : ""}`}
+      >
+        <div className={isEmpty ? "w-full max-w-lg" : ""}>
+          <InputBar
+            onSend={handleSend}
+            onAbort={handleAbort}
+            isStreaming={isStreaming}
+          />
+        </div>
       </div>
 
       {/* 会话历史侧栏 */}
