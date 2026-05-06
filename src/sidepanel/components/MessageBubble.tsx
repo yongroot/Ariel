@@ -1,10 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { marked } from "marked";
 import hljs from "highlight.js";
+import * as XLSX from "xlsx";
 import type { Message } from "../../shared/types";
 import "highlight.js/styles/github-dark-dimmed.css";
 
-// Custom renderer: wraps <pre> with language header + copy button
+// Table index for unique IDs
+let tableCounter = 0;
+
+// Custom renderer: wraps <pre> with language header + copy button, <table> with export button
 const renderer = new marked.Renderer();
 renderer.code = ({ text, lang }: { text: string; lang?: string }) => {
   const language = lang || "";
@@ -18,6 +22,19 @@ renderer.code = ({ text, lang }: { text: string; lang?: string }) => {
     <button class="code-copy-btn rounded px-1.5 py-0.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 transition-colors" data-code="${encodeURIComponent(text)}">复制</button>
   </div>
   <pre class="!m-0 !rounded-none"><code class="hljs language-${escapedLang}">${highlighted}</code></pre>
+</div>`;
+};
+
+renderer.table = ({ header, body }: { header: string; body: string }) => {
+  const idx = tableCounter++;
+  return `<div class="table-wrapper my-2 rounded-lg border border-zinc-700 overflow-hidden">
+  <div class="table-header flex items-center justify-end px-2 py-1 text-[11px] text-zinc-500 bg-zinc-800/50 border-b border-zinc-700">
+    <button class="table-export-btn flex items-center gap-1 rounded px-1.5 py-0.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 transition-colors" data-table-idx="${idx}">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      导出 xlsx
+    </button>
+  </div>
+  <div class="overflow-x-auto"><table data-table-idx="${idx}">${header}${body}</table></div>
 </div>`;
 };
 
@@ -135,26 +152,94 @@ function downloadMarkdown(content: string) {
   URL.revokeObjectURL(url);
 }
 
-/** Markdown renderer with syntax highlighting and code copy buttons */
+/** Parse an HTML <table> element into a 2D array of strings */
+function parseTableData(tableEl: HTMLTableElement): string[][] {
+  const rows: string[][] = [];
+  // Process <thead> first
+  const thead = tableEl.querySelector("thead");
+  if (thead) {
+    for (const tr of thead.querySelectorAll("tr")) {
+      const row: string[] = [];
+      for (const cell of tr.querySelectorAll("th, td")) {
+        row.push((cell.textContent ?? "").trim());
+      }
+      if (row.length > 0) rows.push(row);
+    }
+  }
+  // Process <tbody> and orphan <tr>s
+  const tbody = tableEl.querySelector("tbody");
+  const trs = tbody ? tbody.querySelectorAll("tr") : tableEl.querySelectorAll(":scope > tr");
+  for (const tr of trs) {
+    // Skip rows already in thead
+    if (thead?.contains(tr)) continue;
+    const row: string[] = [];
+    for (const cell of tr.querySelectorAll("th, td")) {
+      row.push((cell.textContent ?? "").trim());
+    }
+    if (row.length > 0) rows.push(row);
+  }
+  return rows;
+}
+
+/** Export a table element to xlsx and trigger download */
+function exportTableToXlsx(tableEl: HTMLTableElement, idx: number) {
+  const data = parseTableData(tableEl);
+  if (data.length === 0) return;
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+
+  // Auto-size columns (approximate)
+  const colWidths = data[0].map((_, colIdx) => {
+    const maxLen = Math.max(...data.map(row => (row[colIdx] ?? "").length));
+    return { wch: Math.min(Math.max(maxLen + 2, 8), 50) };
+  });
+  ws["!cols"] = colWidths;
+
+  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+  XLSX.writeFile(wb, `ariel-table-${idx + 1}.xlsx`);
+}
+
+/** Markdown renderer with syntax highlighting, code copy buttons, and table export buttons */
 function MarkdownRenderer({ content }: { content: string }) {
   const ref = useRef<HTMLDivElement>(null);
 
+  // Reset table counter per render
+  tableCounter = 0;
   const html = marked.parse(content, { async: false }) as string;
 
-  // Event delegation for copy buttons
+  // Event delegation for copy buttons + table export buttons
   useEffect(() => {
     const container = ref.current;
     if (!container) return;
     const handler = (e: Event) => {
-      const btn = (e.target as HTMLElement).closest(".code-copy-btn");
-      if (!btn) return;
-      e.preventDefault();
-      const encoded = btn.getAttribute("data-code");
-      if (!encoded) return;
-      const text = decodeURIComponent(encoded);
-      navigator.clipboard.writeText(text);
-      btn.textContent = "已复制!";
-      setTimeout(() => { btn.textContent = "复制"; }, 1500);
+      // Code copy button
+      const copyBtn = (e.target as HTMLElement).closest(".code-copy-btn");
+      if (copyBtn) {
+        e.preventDefault();
+        const encoded = copyBtn.getAttribute("data-code");
+        if (!encoded) return;
+        const text = decodeURIComponent(encoded);
+        navigator.clipboard.writeText(text);
+        copyBtn.textContent = "已复制!";
+        setTimeout(() => { copyBtn.textContent = "复制"; }, 1500);
+        return;
+      }
+
+      // Table export button
+      const exportBtn = (e.target as HTMLElement).closest(".table-export-btn");
+      if (exportBtn) {
+        e.preventDefault();
+        const idx = exportBtn.getAttribute("data-table-idx");
+        if (idx === null) return;
+        const tableEl = container.querySelector(`table[data-table-idx="${idx}"]`) as HTMLTableElement;
+        if (!tableEl) return;
+        exportTableToXlsx(tableEl, parseInt(idx, 10));
+        exportBtn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> 已导出`;
+        setTimeout(() => {
+          exportBtn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 导出 xlsx`;
+        }, 1500);
+      }
     };
     container.addEventListener("click", handler);
     return () => container.removeEventListener("click", handler);
