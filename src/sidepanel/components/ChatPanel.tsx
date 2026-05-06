@@ -38,9 +38,14 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
   const [currentToolCalls, setCurrentToolCalls] = useState<
     (ToolCall & { result?: unknown; error?: string })[]
   >([]);
+  const [streamingElapsed, setStreamingElapsed] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sessionsRef = useRef<Session[]>(sessions);
   const activeIdRef = useRef<string | null>(activeSessionId);
+  const portRef = useRef<chrome.runtime.Port | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef<number>(0);
 
   // Keep refs in sync
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
@@ -48,6 +53,7 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
   const messages = activeSession?.messages ?? [];
+  const isEmpty = messages.length === 0 && !isStreaming;
 
   // Load sessions on mount, auto-create if empty
   useEffect(() => {
@@ -76,7 +82,6 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
             saveSessions([session], session.id);
             chrome.storage.local.remove(STORAGE_KEYS.HISTORY);
           } else {
-            // No sessions at all — create a fresh one so user can immediately start chatting
             const session = createSession();
             setSessions([session]);
             setActiveSessionId(session.id);
@@ -118,9 +123,26 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
     });
   }
 
+  // Auto-scroll to bottom when new content arrives
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, currentContent, currentReasoning, currentToolCalls]);
+
+  // Streaming timer
+  const startTimer = useCallback(() => {
+    startTimeRef.current = Date.now();
+    setStreamingElapsed(0);
+    timerRef.current = setInterval(() => {
+      setStreamingElapsed(Math.floor((Date.now() - startTimeRef.current) / 100) / 10);
+    }, 100);
+  }, []);
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
 
   const handleNewSession = useCallback(() => {
     if (isStreaming) return;
@@ -174,7 +196,6 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
   const handleToggleStar = useCallback((id: string) => {
     setSessions(prev => {
       const next = prev.map(s => s.id === id ? { ...s, starred: !s.starred } : s);
-      // Starred sessions sort to top
       next.sort((a, b) => {
         if (a.starred !== b.starred) return a.starred ? -1 : 1;
         return b.updatedAt - a.updatedAt;
@@ -216,12 +237,14 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
     setCurrentContent("");
     setCurrentReasoning("");
     setCurrentToolCalls([]);
+    startTimer();
 
     let fullContent = "";
     let fullReasoning = "";
     const toolCalls: (ToolCall & { result?: unknown; error?: string })[] = [];
 
     const port = chrome.runtime.connect({ name: "chat-stream" });
+    portRef.current = port;
 
     port.onMessage.addListener((event: StreamEvent) => {
       switch (event.type) {
@@ -253,18 +276,11 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
               toolResults: toolCalls.map(({ id, name, result, error }) => ({ toolCallId: id, name, result, error })),
               timestamp: Date.now(),
             };
-            // Use ref to get latest messages including userMsg
             const currentSession = sessionsRef.current.find(s => s.id === sid);
             const existingMsgs = currentSession?.messages ?? [];
             updateSessionMessages(sid, [...existingMsgs, aiMsg]);
           }
-          fullContent = "";
-          fullReasoning = "";
-          setCurrentContent("");
-          setCurrentReasoning("");
-          setCurrentToolCalls([]);
-          setIsStreaming(false);
-          port.disconnect();
+          cleanup();
           break;
         }
         case "ERROR": {
@@ -277,12 +293,31 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
           const currentSession = sessionsRef.current.find(s => s.id === sid);
           const existingMsgs = currentSession?.messages ?? [];
           updateSessionMessages(sid, [...existingMsgs, errorMsg]);
-          setIsStreaming(false);
-          port.disconnect();
+          cleanup();
           break;
         }
       }
     });
+
+    port.onDisconnect.addListener(() => {
+      // If port disconnects unexpectedly (e.g. SW crashed), clean up
+      if (portRef.current === port) {
+        cleanup();
+      }
+    });
+
+    function cleanup() {
+      stopTimer();
+      setStreamingElapsed(0);
+      fullContent = "";
+      fullReasoning = "";
+      setCurrentContent("");
+      setCurrentReasoning("");
+      setCurrentToolCalls([]);
+      setIsStreaming(false);
+      portRef.current = null;
+      try { port.disconnect(); } catch { /* already disconnected */ }
+    }
 
     // Send history from current session
     const currentSession = sessionsRef.current.find(s => s.id === sid);
@@ -292,10 +327,17 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
       content: content.trim(),
       history: historyToSend,
     });
-  }, []);
+  }, [startTimer, stopTimer]);
 
   const handleAbort = useCallback(() => {
-    try { chrome.runtime.sendMessage({ type: "CHAT_ABORT" }); } catch { /* ignore */ }
+    // Send abort through port (not sendMessage) so SW can abort the fetch
+    if (portRef.current) {
+      try {
+        portRef.current.postMessage({ type: "CHAT_ABORT" });
+      } catch { /* port may be broken */ }
+    }
+
+    // Save partial content as a message
     const sid = activeIdRef.current;
     if (sid && (currentContent || currentReasoning)) {
       const partialMsg: Message = {
@@ -308,17 +350,50 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
       const currentSession = sessionsRef.current.find(s => s.id === sid);
       updateSessionMessages(sid, [...(currentSession?.messages ?? []), partialMsg]);
     }
+
+    // Clean up local state
+    stopTimer();
+    setStreamingElapsed(0);
     setIsStreaming(false);
     setCurrentContent("");
     setCurrentReasoning("");
     setCurrentToolCalls([]);
-  }, [currentContent, currentReasoning]);
+    portRef.current = null;
+  }, [currentContent, currentReasoning, stopTimer]);
+
+  // Scroll tracking for floating buttons
+  const [showScrollBtns, setShowScrollBtns] = useState(false);
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const distFromBottom = scrollHeight - scrollTop - clientHeight;
+    setShowScrollBtns(scrollTop > 200 || distFromBottom > 200);
+  }, []);
+
+  const scrollToTop = useCallback(() => {
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  // Format elapsed time
+  const elapsedStr = streamingElapsed < 60
+    ? `${streamingElapsed.toFixed(1)}s`
+    : `${Math.floor(streamingElapsed / 60)}m ${(streamingElapsed % 60).toFixed(0)}s`;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* 消息列表 */}
-      <div className="flex-1 overflow-y-auto p-3">
-        {!activeSession && (
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto p-3"
+        onScroll={handleScroll}
+      >
+        {/* 空状态：居中显示 */}
+        {isEmpty && (
           <div className="flex h-full items-center justify-center text-sm" style={{ color: "var(--ap-text-muted)" }}>
             发送消息开始对话
           </div>
@@ -345,8 +420,47 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
           />
         )}
 
+        {/* 流式计时器 */}
+        {isStreaming && (
+          <div className="mt-2 text-center">
+            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px]"
+              style={{ backgroundColor: "var(--ap-bg-tertiary)", color: "var(--ap-text-muted)" }}>
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+              {elapsedStr}
+            </span>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
+
+      {/* 滚动按钮 */}
+      {showScrollBtns && !isEmpty && (
+        <div className="absolute bottom-16 left-3 right-3 flex justify-between pointer-events-none z-10">
+          <button
+            onClick={scrollToTop}
+            className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full shadow transition-colors"
+            style={{ backgroundColor: "var(--ap-bg-tertiary)", color: "var(--ap-text-muted)" }}
+            title="跳到顶部"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="19" x2="12" y2="5" />
+              <polyline points="5 12 12 5 19 12" />
+            </svg>
+          </button>
+          <button
+            onClick={scrollToBottom}
+            className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full shadow transition-colors"
+            style={{ backgroundColor: "var(--ap-bg-tertiary)", color: "var(--ap-text-muted)" }}
+            title="回到底部"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <polyline points="19 12 12 19 5 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* 输入栏 */}
       <div className="px-2 pb-2">
@@ -390,7 +504,6 @@ function SessionHistory({
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // 确保列表从顶部开始，不自动置底
   useEffect(() => {
     if (listRef.current) {
       listRef.current.scrollTop = 0;
@@ -402,13 +515,11 @@ function SessionHistory({
       className="absolute inset-0 z-50 flex flex-col"
       style={{ backgroundColor: "var(--ap-bg-primary)" }}
     >
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--ap-border)" }}>
         <h2 className="text-sm font-semibold" style={{ color: "var(--ap-text-secondary)" }}>会话历史</h2>
         <button onClick={onClose} className="text-xs" style={{ color: "var(--ap-text-muted)" }}>✕</button>
       </div>
 
-      {/* Session list */}
       <div ref={listRef} className="flex-1 overflow-y-auto p-2">
         {sessions.length === 0 ? (
           <div className="text-center text-xs py-8" style={{ color: "var(--ap-text-muted)" }}>暂无会话记录</div>
@@ -416,16 +527,13 @@ function SessionHistory({
           sessions.map((session) => (
             <div
               key={session.id}
-              className={`group mb-1 rounded-lg px-3 py-2 cursor-pointer transition-colors ${
-                session.id === activeSessionId ? "" : ""
-              }`}
+              className="group mb-1 rounded-lg px-3 py-2 cursor-pointer transition-colors"
               style={{
                 backgroundColor: session.id === activeSessionId ? "var(--ap-bg-secondary)" : "transparent",
               }}
               onClick={() => onSelect(session.id)}
             >
               <div className="flex items-start gap-2">
-                {/* Star button */}
                 <button
                   onClick={(e) => { e.stopPropagation(); onToggleStar(session.id); }}
                   className="mt-0.5 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity"
@@ -448,7 +556,6 @@ function SessionHistory({
                     <span className="text-xs font-medium truncate" style={{ color: "var(--ap-text-primary)" }}>
                       {session.title}
                     </span>
-                    {/* Delete button */}
                     {confirmDelete === session.id ? (
                       <div className="flex shrink-0 gap-1">
                         <button

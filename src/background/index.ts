@@ -2,7 +2,7 @@ import type { PanelMessage, StreamEvent } from "../shared/protocol";
 import { handleChatSend, abortChat } from "./llm";
 import { STORAGE_KEYS, DEFAULT_SETTINGS } from "../shared/constants";
 import type { Settings, PageContext, Message } from "../shared/types";
-import { handleCapturedRequest, getCapturedCount, getCapturedList } from "./tools/registry";
+import { handleCapturedRequest, getCapturedCount, getCapturedList, clearCaptured } from "./tools/registry";
 
 // Per-tab theme cache
 const tabThemes = new Map<number, { bg: string }>();
@@ -91,6 +91,11 @@ chrome.runtime.onMessage.addListener(
 
       case "GET_CAPTURED_LIST":
         sendResponse({ requests: getCapturedList(50) });
+        break;
+
+      case "CLEAR_CAPTURED":
+        clearCaptured();
+        sendResponse({ ok: true });
         break;
 
       case "PAGE_THEME":

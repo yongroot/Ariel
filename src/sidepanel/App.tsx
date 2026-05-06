@@ -4,7 +4,6 @@ import type { Settings } from "../shared/types";
 import { DEFAULT_SETTINGS, STORAGE_KEYS } from "../shared/constants";
 import { generatePalette, applyPalette } from "../shared/theme";
 
-// 构建时间戳（vite.config.ts 里 define 的 __BUILD_TIME__）
 declare const __BUILD_TIME__: number;
 
 const BUILD_TIME = typeof __BUILD_TIME__ === "number"
@@ -16,11 +15,12 @@ function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [newSessionSignal, setNewSessionSignal] = useState(0);
+  const [pageTitle, setPageTitle] = useState<string | null>(null);
   const lastBgRef = useRef<string | null>(null);
 
-  // === Adaptive theme polling ===
+  // === Adaptive theme polling + page title ===
   useEffect(() => {
-    const pollTheme = () => {
+    const poll = () => {
       try {
         chrome.runtime.sendMessage({ type: "GET_PAGE_THEME" }, (theme: { bg: string } | null) => {
           if (theme?.bg && theme.bg !== lastBgRef.current) {
@@ -29,10 +29,18 @@ function App() {
             applyPalette(document.documentElement, palette);
           }
         });
+        chrome.runtime.sendMessage({ type: "GET_PAGE_CONTEXT" }, (ctx: { title: string } | undefined) => {
+          if (ctx?.title) {
+            const t = ctx.title.trim();
+            setPageTitle(t.length > 20 ? t.slice(0, 20) + "…" : t);
+          } else {
+            setPageTitle(null);
+          }
+        });
       } catch { /* ignore */ }
     };
-    pollTheme();
-    const interval = setInterval(pollTheme, 3000);
+    poll();
+    const interval = setInterval(poll, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -84,8 +92,19 @@ function App() {
         className="flex items-center justify-between px-3 py-2"
         style={{ borderBottom: "1px solid var(--ap-border)" }}
       >
-        <h1 className="text-sm font-semibold tracking-wide" style={{ color: "var(--ap-text-secondary)" }}>
-          Ariel
+        <h1 className="flex items-center gap-1.5 text-sm font-semibold tracking-wide" style={{ color: "var(--ap-text-secondary)" }}>
+          {pageTitle ? (
+            <>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 opacity-60">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
+              <span className="truncate max-w-[180px]">{pageTitle}</span>
+            </>
+          ) : (
+            "Ariel"
+          )}
         </h1>
         <div className="flex items-center gap-0.5">
           <button
@@ -154,6 +173,7 @@ function SettingsPanel({
   onSave: (s: Settings) => void;
 }) {
   const [form, setForm] = useState(settings);
+  const [saveFeedback, setSaveFeedback] = useState(false);
   const [capturedCount, setCapturedCount] = useState<number | null>(null);
   const [capturedList, setCapturedList] = useState<Array<{
     id: string;
@@ -178,9 +198,19 @@ function SettingsPanel({
     refreshCaptured();
   }, [refreshCaptured]);
 
+  const handleClearCaptured = useCallback(() => {
+    try {
+      chrome.runtime.sendMessage({ type: "CLEAR_CAPTURED" }, () => {
+        refreshCaptured();
+      });
+    } catch { /* ignore */ }
+  }, [refreshCaptured]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(form);
+    setSaveFeedback(true);
+    setTimeout(() => setSaveFeedback(false), 1500);
   };
 
   const timeStr = BUILD_TIME.toLocaleString("zh-CN", {
@@ -205,13 +235,22 @@ function SettingsPanel({
       <div className="rounded px-3 py-2" style={{ backgroundColor: "var(--ap-bg-secondary)", border: "1px solid var(--ap-border)" }}>
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-medium" style={{ color: "var(--ap-text-secondary)" }}>API 捕获状态</span>
-          <button
-            onClick={refreshCaptured}
-            className="text-xs transition-colors"
-            style={{ color: "var(--ap-text-muted)" }}
-          >
-            刷新
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleClearCaptured}
+              className="text-xs transition-colors hover:text-red-400"
+              style={{ color: "var(--ap-text-muted)" }}
+            >
+              清空
+            </button>
+            <button
+              onClick={refreshCaptured}
+              className="text-xs transition-colors"
+              style={{ color: "var(--ap-text-muted)" }}
+            >
+              刷新
+            </button>
+          </div>
         </div>
         {capturedCount === null ? (
           <span className="text-xs" style={{ color: "var(--ap-text-muted)" }}>检测中...</span>
@@ -261,10 +300,13 @@ function SettingsPanel({
 
         <button
           type="submit"
-          className="mt-auto rounded px-4 py-2 text-sm font-medium transition-colors"
-          style={{ backgroundColor: "var(--ap-accent)", color: "var(--ap-accent-text)" }}
+          className="mt-auto rounded px-4 py-2 text-sm font-medium transition-all duration-300"
+          style={saveFeedback
+            ? { backgroundColor: "#22c55e", color: "#ffffff" }
+            : { backgroundColor: "var(--ap-accent)", color: "var(--ap-accent-text)" }
+          }
         >
-          保存设置
+          {saveFeedback ? "已保存 ✓" : "保存设置"}
         </button>
       </form>
     </div>

@@ -1,6 +1,6 @@
 import type { ToolDefinition } from "../../shared/types";
 import { inspectTool, readTool } from "./page-tools";
-import { capturedApiTool, handleCapturedRequest, getCapturedCount, getCapturedList } from "./captured-api";
+import { capturedApiTool, handleCapturedRequest, getCapturedCount, getCapturedList, clearCaptured } from "./captured-api";
 import { analyzeDataTool } from "./analyze-data";
 
 const tools: ToolDefinition[] = [inspectTool, readTool, capturedApiTool, analyzeDataTool];
@@ -26,4 +26,4 @@ export async function executeTool(
 }
 
 // Content Script 推送捕获的 API 请求
-export { handleCapturedRequest, getCapturedCount, getCapturedList };
+export { handleCapturedRequest, getCapturedCount, getCapturedList, clearCaptured };

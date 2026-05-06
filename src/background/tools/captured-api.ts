@@ -43,6 +43,10 @@ export function getCapturedList(limit = 30): CapturedRequest[] {
     .slice(0, limit);
 }
 
+export function clearCaptured(): void {
+  store.clear();
+}
+
 function query(filter: { url?: string; method?: string }, limit = 20): CapturedRequest[] {
   let results = Array.from(store.values());
 
