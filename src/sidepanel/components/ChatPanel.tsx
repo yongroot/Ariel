@@ -146,6 +146,9 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
 
   const handleNewSession = useCallback(() => {
     if (isStreaming) return;
+    // 空会话时忽略，避免创建无意义的"新对话"
+    const current = sessionsRef.current.find(s => s.id === activeIdRef.current);
+    if (current && current.messages.length === 0) return;
     const session = createSession();
     setSessions(prev => {
       const next = [session, ...prev];
@@ -498,7 +501,6 @@ function SessionHistory({
   onToggleStar: (id: string) => void;
   onClose: () => void;
 }) {
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -553,24 +555,8 @@ function SessionHistory({
                     <span className="text-xs font-medium truncate" style={{ color: "var(--ap-text-primary)" }}>
                       {session.title}
                     </span>
-                    {confirmDelete === session.id ? (
-                      <div className="flex shrink-0 gap-1">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onDelete(session.id); setConfirmDelete(null); }}
-                          className="rounded px-1.5 py-0.5 text-[10px] bg-red-600 text-white"
-                        >
-                          确认
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }}
-                          className="rounded px-1.5 py-0.5 text-[10px]" style={{ color: "var(--ap-text-muted)" }}
-                        >
-                          取消
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setConfirmDelete(session.id); setTimeout(() => setConfirmDelete(null), 3000); }}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onDelete(session.id); }}
                         className="shrink-0 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
                         style={{ color: "var(--ap-text-muted)" }}
                         title="删除"
@@ -580,7 +566,6 @@ function SessionHistory({
                           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                         </svg>
                       </button>
-                    )}
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 text-[10px]" style={{ color: "var(--ap-text-muted)" }}>
                     <span>{formatTime(session.createdAt)}</span>

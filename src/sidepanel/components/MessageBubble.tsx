@@ -25,8 +25,31 @@ renderer.code = ({ text, lang }: { text: string; lang?: string }) => {
 </div>`;
 };
 
-renderer.table = ({ header, body }: { header: string; body: string }) => {
+// marked v18: renderer.table receives a token object, not pre-rendered strings.
+// We need to build the HTML ourselves using this.parser or marked's internal helpers.
+const _origTable = renderer.table.bind(renderer);
+renderer.table = (token: Record<string, unknown>) => {
   const idx = tableCounter++;
+  // Build header row
+  const headerCells = (token.header as Array<Record<string, unknown>>)
+    .map((cell: Record<string, unknown>) => {
+      const align = cell.align ? ` align="${cell.align}"` : "";
+      const text = (renderer as unknown as Record<string, (...a: unknown[]) => string>).tablerow
+        ? (renderer as unknown as Record<string, (...a: unknown[]) => string>).tablecell(cell)
+        : `<th${align}>${cell.text}</th>`;
+      return text;
+    }).join("");
+  // Build body rows
+  const bodyRows = (token.rows as Array<Array<Record<string, unknown>>>)
+    .map((row: Array<Record<string, unknown>>) => {
+      const cells = row
+        .map((cell: Record<string, unknown>) => {
+          const align = cell.align ? ` align="${cell.align}"` : "";
+          return `<td${align}>${cell.text}</td>`;
+        }).join("");
+      return `<tr>${cells}</tr>`;
+    }).join("\n");
+
   return `<div class="table-wrapper my-2 rounded-lg border border-zinc-700 overflow-hidden">
   <div class="table-header flex items-center justify-end px-2 py-1 text-[11px] text-zinc-500 bg-zinc-800/50 border-b border-zinc-700">
     <button class="table-export-btn flex items-center gap-1 rounded px-1.5 py-0.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 transition-colors" data-table-idx="${idx}">
@@ -34,7 +57,7 @@ renderer.table = ({ header, body }: { header: string; body: string }) => {
       导出 xlsx
     </button>
   </div>
-  <div class="overflow-x-auto"><table data-table-idx="${idx}">${header}${body}</table></div>
+  <div class="overflow-x-auto"><table data-table-idx="${idx}"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table></div>
 </div>`;
 };
 
