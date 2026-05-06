@@ -46,6 +46,7 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
   const portRef = useRef<chrome.runtime.Port | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
+  const skipAutoScrollRef = useRef(false);
 
   // Keep refs in sync
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
@@ -123,8 +124,12 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
     });
   }
 
-  // Auto-scroll to bottom when new content arrives
+  // Auto-scroll to bottom when new content arrives (skip on session switch)
   useEffect(() => {
+    if (skipAutoScrollRef.current) {
+      skipAutoScrollRef.current = false;
+      return;
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, currentContent, currentReasoning, currentToolCalls]);
 
@@ -170,6 +175,7 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
 
   const handleSwitchSession = useCallback((id: string) => {
     if (isStreaming || id === activeIdRef.current) return;
+    skipAutoScrollRef.current = true;
     setActiveSessionId(id);
     chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_SESSION]: id });
     setCurrentContent("");
@@ -180,6 +186,7 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
 
   const handleDeleteSession = useCallback((id: string) => {
     if (isStreaming) return;
+    skipAutoScrollRef.current = true;
     setSessions(prev => {
       const next = prev.filter(s => s.id !== id);
       saveSessions(next);
