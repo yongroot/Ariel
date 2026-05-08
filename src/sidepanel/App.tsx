@@ -226,7 +226,7 @@ function SettingsPanel({
       {/* 版本信息 */}
       <div className="rounded px-3 py-2" style={{ backgroundColor: "var(--ap-bg-secondary)", border: "1px solid var(--ap-border)" }}>
         <div className="flex items-center justify-between">
-          <span className="text-xs" style={{ color: "var(--ap-text-muted)" }}>Ariel v0.0.1</span>
+          <span className="text-xs" style={{ color: "var(--ap-text-muted)" }}>Ariel v0.0.2</span>
           <span className="text-xs" style={{ color: "var(--ap-text-muted)" }}>构建: {timeStr}</span>
         </div>
       </div>

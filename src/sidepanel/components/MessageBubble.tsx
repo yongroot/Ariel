@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { marked } from "marked";
 import hljs from "highlight.js";
-import * as XLSX from "xlsx";
+
 import type { Message } from "../../shared/types";
 import "highlight.js/styles/github-dark-dimmed.css";
 
@@ -34,10 +34,8 @@ renderer.table = (token: Record<string, unknown>) => {
   const headerCells = (token.header as Array<Record<string, unknown>>)
     .map((cell: Record<string, unknown>) => {
       const align = cell.align ? ` align="${cell.align}"` : "";
-      const text = (renderer as unknown as Record<string, (...a: unknown[]) => string>).tablerow
-        ? (renderer as unknown as Record<string, (...a: unknown[]) => string>).tablecell(cell)
-        : `<th${align}>${cell.text}</th>`;
-      return text;
+      const rendered = marked.parseInline(cell.text as string, { async: false }) as string;
+      return `<th${align}>${rendered}</th>`;
     }).join("");
   // Build body rows
   const bodyRows = (token.rows as Array<Array<Record<string, unknown>>>)
@@ -45,7 +43,8 @@ renderer.table = (token: Record<string, unknown>) => {
       const cells = row
         .map((cell: Record<string, unknown>) => {
           const align = cell.align ? ` align="${cell.align}"` : "";
-          return `<td${align}>${cell.text}</td>`;
+          const rendered = marked.parseInline(cell.text as string, { async: false }) as string;
+          return `<td${align}>${rendered}</td>`;
         }).join("");
       return `<tr>${cells}</tr>`;
     }).join("\n");
@@ -54,7 +53,7 @@ renderer.table = (token: Record<string, unknown>) => {
   <div class="table-header flex items-center justify-end px-2 py-1 text-[11px] text-zinc-500 bg-zinc-800/50 border-b border-zinc-700">
     <button class="table-export-btn flex items-center gap-1 rounded px-1.5 py-0.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 transition-colors" data-table-idx="${idx}">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      导出 xlsx
+      导出 tsv
     </button>
   </div>
   <div class="overflow-x-auto"><table data-table-idx="${idx}"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table></div>
@@ -127,7 +126,7 @@ export default function MessageBubble({ message, isStreaming }: MessageBubblePro
 
         {/* Text content */}
         {message.content && (
-          <div className="prose prose-invert prose-sm max-w-none">
+          <div className="prose prose-sm max-w-none">
             {!isUser ? (
               <MarkdownRenderer content={message.content} />
             ) : (
@@ -204,23 +203,20 @@ function parseTableData(tableEl: HTMLTableElement): string[][] {
   return rows;
 }
 
-/** Export a table element to xlsx and trigger download */
-function exportTableToXlsx(tableEl: HTMLTableElement, idx: number) {
+/** Export a table element to TSV and trigger download */
+function exportTableToTsv(tableEl: HTMLTableElement, idx: number) {
   const data = parseTableData(tableEl);
   if (data.length === 0) return;
-
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(data);
-
-  // Auto-size columns (approximate)
-  const colWidths = data[0].map((_, colIdx) => {
-    const maxLen = Math.max(...data.map(row => (row[colIdx] ?? "").length));
-    return { wch: Math.min(Math.max(maxLen + 2, 8), 50) };
-  });
-  ws["!cols"] = colWidths;
-
-  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-  XLSX.writeFile(wb, `ariel-table-${idx + 1}.xlsx`);
+  const tsv = data.map(row => row.map(cell => cell.replace(/\t/g, " ").replace(/\n/g, " ")).join("\t")).join("\n");
+  const blob = new Blob(["\uFEFF" + tsv], { type: "text/tab-separated-values;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ariel-table-${idx + 1}.tsv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /** Markdown renderer with syntax highlighting, code copy buttons, and table export buttons */
@@ -257,10 +253,10 @@ function MarkdownRenderer({ content }: { content: string }) {
         if (idx === null) return;
         const tableEl = container.querySelector(`table[data-table-idx="${idx}"]`) as HTMLTableElement;
         if (!tableEl) return;
-        exportTableToXlsx(tableEl, parseInt(idx, 10));
+        exportTableToTsv(tableEl, parseInt(idx, 10));
         exportBtn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> 已导出`;
         setTimeout(() => {
-          exportBtn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 导出 xlsx`;
+          exportBtn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 导出 tsv`;
         }, 1500);
       }
     };
