@@ -121,11 +121,33 @@ chrome.runtime.onMessage.addListener(
   }
 );
 
-// Tab 切换时通知 SidePanel 刷新主题和页面标题
+// Tab 切换时采样新 tab 主题，再通知 SidePanel
 chrome.tabs.onActivated.addListener((activeInfo) => {
-  chrome.runtime.sendMessage({ type: "TAB_ACTIVATED", tabId: activeInfo.tabId }).catch(() => {
-    // SidePanel 可能未打开，忽略
+  // 注入采样函数到新激活的 tab，让 content script 上报 PAGE_THEME 到 SW 缓存
+  chrome.scripting.executeScript({
+    target: { tabId: activeInfo.tabId },
+    func: () => {
+      const computedStyle = getComputedStyle(document.documentElement);
+      let bg = computedStyle.backgroundColor;
+      if (!bg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") {
+        const bodyStyle = getComputedStyle(document.body);
+        bg = bodyStyle.backgroundColor;
+      }
+      if (!bg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") {
+        bg = "rgb(255, 255, 255)";
+      }
+      window.postMessage({ type: "__ARIEL_CAPTURE__", payload: { type: "PAGE_THEME", theme: { bg } } }, "*");
+    },
+  }).catch(() => {
+    // 某些页面（chrome://、about:）无法注入，忽略
   });
+
+  // 等待采样完成后再广播 TAB_ACTIVATED
+  setTimeout(() => {
+    chrome.runtime.sendMessage({ type: "TAB_ACTIVATED", tabId: activeInfo.tabId }).catch(() => {
+      // SidePanel 可能未打开，忽略
+    });
+  }, 100);
 });
 
 async function getPageContext(): Promise<PageContext> {
