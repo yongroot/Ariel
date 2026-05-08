@@ -10,6 +10,7 @@ interface CapturedRequest {
   responseBody?: string;
   requestBody?: string;
   timestamp: number;
+  tabId: number;
 }
 
 const store = new Map<string, CapturedRequest>();
@@ -33,12 +34,18 @@ export function handleCapturedRequest(entry: CapturedRequest) {
 }
 
 // 查询接口（供 SW 消息处理和调试面板使用）
-export function getCapturedCount(): number {
-  return store.size;
+export function getCapturedCount(tabId?: number): number {
+  if (tabId == null) return store.size;
+  let count = 0;
+  for (const r of store.values()) {
+    if (r.tabId === tabId) count++;
+  }
+  return count;
 }
 
-export function getCapturedList(limit = 30): CapturedRequest[] {
+export function getCapturedList(limit = 30, tabId?: number): CapturedRequest[] {
   return Array.from(store.values())
+    .filter(r => tabId == null || r.tabId === tabId)
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, limit);
 }
@@ -47,9 +54,12 @@ export function clearCaptured(): void {
   store.clear();
 }
 
-function query(filter: { url?: string; method?: string }, limit = 20): CapturedRequest[] {
+function query(filter: { url?: string; method?: string; tabId?: number }, limit = 20): CapturedRequest[] {
   let results = Array.from(store.values());
 
+  if (filter.tabId != null) {
+    results = results.filter((r) => r.tabId === filter.tabId);
+  }
   if (filter.url) {
     const lowerUrl = filter.url.toLowerCase();
     results = results.filter((r) => r.url.toLowerCase().includes(lowerUrl));
@@ -66,10 +76,11 @@ function query(filter: { url?: string; method?: string }, limit = 20): CapturedR
  * 获取最近匹配的完整响应体（不截断）
  * 供 analyze_data 工具使用
  */
-export function getLatestResponseBody(urlKeyword: string): { url: string; responseBody: string | undefined } | null {
+export function getLatestResponseBody(urlKeyword: string, tabId?: number): { url: string; responseBody: string | undefined } | null {
   const lowerUrl = urlKeyword.toLowerCase();
   let latest: CapturedRequest | null = null;
   for (const entry of store.values()) {
+    if (tabId != null && entry.tabId !== tabId) continue;
     if (entry.url.toLowerCase().includes(lowerUrl) && entry.responseBody) {
       if (!latest || entry.timestamp > latest.timestamp) {
         latest = entry;
@@ -104,9 +115,13 @@ export const capturedApiTool: ToolDefinition = {
     },
   },
   execute: async (args) => {
-    const filter: { url?: string; method?: string } = {};
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tabId = tabs[0]?.id;
+
+    const filter: { url?: string; method?: string; tabId?: number } = {};
     if (args.url) filter.url = args.url as string;
     if (args.method) filter.method = args.method as string;
+    if (tabId != null) filter.tabId = tabId;
     const limit = (args.limit as number) ?? 20;
 
     const results = query(filter, limit);

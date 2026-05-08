@@ -18,7 +18,7 @@ function App() {
   const [pageTitle, setPageTitle] = useState<string | null>(null);
   const lastBgRef = useRef<string | null>(null);
 
-  // === Adaptive theme polling + page title ===
+  // === Adaptive theme + page title (事件驱动) ===
   useEffect(() => {
     const poll = () => {
       try {
@@ -39,9 +39,15 @@ function App() {
         });
       } catch { /* ignore */ }
     };
-    poll();
-    const interval = setInterval(poll, 3000);
-    return () => clearInterval(interval);
+    poll(); // 初始 poll 一次
+
+    const handleMessage = (message: { type: string }) => {
+      if (message.type === "TAB_ACTIVATED") {
+        poll();
+      }
+    };
+    chrome.runtime.onMessage.addListener(handleMessage);
+    return () => chrome.runtime.onMessage.removeListener(handleMessage);
   }, []);
 
   const loadSettings = async () => {

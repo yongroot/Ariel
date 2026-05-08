@@ -81,17 +81,21 @@ chrome.runtime.onMessage.addListener(
         break;
 
       case "CAPTURED_API":
-        handleCapturedRequest(message);
+        handleCapturedRequest({ ...message, tabId: _sender.tab?.id ?? 0 });
         sendResponse({ ok: true });
         break;
 
       case "GET_CAPTURED_COUNT":
-        sendResponse({ count: getCapturedCount() });
-        break;
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          sendResponse({ count: getCapturedCount(tabs[0]?.id) });
+        });
+        return true;
 
       case "GET_CAPTURED_LIST":
-        sendResponse({ requests: getCapturedList(50) });
-        break;
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          sendResponse({ requests: getCapturedList(50, tabs[0]?.id) });
+        });
+        return true;
 
       case "CLEAR_CAPTURED":
         clearCaptured();
@@ -116,6 +120,13 @@ chrome.runtime.onMessage.addListener(
     }
   }
 );
+
+// Tab 切换时通知 SidePanel 刷新主题和页面标题
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  chrome.runtime.sendMessage({ type: "TAB_ACTIVATED", tabId: activeInfo.tabId }).catch(() => {
+    // SidePanel 可能未打开，忽略
+  });
+});
 
 async function getPageContext(): Promise<PageContext> {
   try {

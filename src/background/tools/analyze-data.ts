@@ -267,8 +267,12 @@ export const analyzeDataTool: ToolDefinition = {
   execute: async (args) => {
     const urlKeyword = args.url as string;
 
+    // 0. 获取当前活跃 tabId 隔离数据
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tabId = tabs[0]?.id;
+
     // 1. 获取完整响应体
-    const captured = getLatestResponseBody(urlKeyword);
+    const captured = getLatestResponseBody(urlKeyword, tabId);
     if (!captured) {
       return { error: `没有找到匹配 "${urlKeyword}" 的已捕获请求`, hint: "请先确保页面已加载相关 API 请求" };
     }
