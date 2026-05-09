@@ -4,6 +4,7 @@ import hljs from "highlight.js";
 
 import type { Message } from "../../shared/types";
 import "highlight.js/styles/github-dark-dimmed.css";
+import { mountCharts } from "./ChartRenderer";
 
 // Table index for unique IDs
 let tableCounter = 0;
@@ -12,6 +13,11 @@ let tableCounter = 0;
 const renderer = new marked.Renderer();
 renderer.code = ({ text, lang }: { text: string; lang?: string }) => {
   const language = lang || "";
+
+  if (language === "chart") {
+    return `<div class="chart-placeholder my-2 rounded-lg border border-zinc-700 overflow-hidden" data-chart-config="${encodeURIComponent(text)}"></div>`;
+  }
+
   const highlighted = language && hljs.getLanguage(language)
     ? hljs.highlight(text, { language }).value
     : hljs.highlightAuto(text).value;
@@ -227,10 +233,14 @@ function MarkdownRenderer({ content }: { content: string }) {
   tableCounter = 0;
   const html = marked.parse(content, { async: false }) as string;
 
-  // Event delegation for copy buttons + table export buttons
+  // Event delegation for copy buttons + table export buttons + mount charts
   useEffect(() => {
     const container = ref.current;
     if (!container) return;
+
+    // Mount ECharts on .chart-placeholder elements
+    const cleanupCharts = mountCharts(container);
+
     const handler = (e: Event) => {
       // Code copy button
       const copyBtn = (e.target as HTMLElement).closest(".code-copy-btn");
@@ -261,8 +271,11 @@ function MarkdownRenderer({ content }: { content: string }) {
       }
     };
     container.addEventListener("click", handler);
-    return () => container.removeEventListener("click", handler);
-  }, []);
+    return () => {
+      container.removeEventListener("click", handler);
+      cleanupCharts();
+    };
+  }, [content]);
 
   return <div ref={ref} dangerouslySetInnerHTML={{ __html: html }} />;
 }

@@ -29,9 +29,24 @@ interface OpenAIChoice {
 
 // 内部 API 消息格式
 type ApiMessage =
+  | { role: "system"; content: string }
   | { role: "user"; content: string }
   | { role: "assistant"; content: string | null; tool_calls?: OpenAIToolCall[] }
   | { role: "tool"; tool_call_id: string; content: string };
+
+const SYSTEM_PROMPT = `你是一个网页分析助手。你可以使用工具获取页面内容和API数据。
+当需要展示图表（饼图、柱状图、折线图等）时，使用 markdown 代码块，语言标记为 chart，内容为 JSON 格式。
+JSON 格式示例：
+\`\`\`chart
+{"type":"bar","title":"标题","xAxis":["A","B","C"],"series":[{"name":"系列名","data":[100,200,300]}]}
+\`\`\`
+饼图示例：
+\`\`\`chart
+{"type":"pie","title":"占比","series":[{"data":[{"name":"A","value":100},{"name":"B","value":200}]}]}
+\`\`\`
+type 支持：bar（柱状图）、line（折线图）、pie（饼图）、scatter（散点图）
+也可以直接使用 ECharts 原生 option 格式（包含 option 字段时直接透传）。
+数据分析任务中，目标数据如果存在于列表、表格等需要滚动加载的场景，必须优先使用 captured_api 或 analyze_data 工具获取 API 接口数据，而不是 page_read 解析页面 DOM。`;
 
 // 模块级 AbortController
 let abortController: AbortController | null = null;
@@ -97,6 +112,7 @@ export async function handleChatSend(
     }
 
     const apiMessages: ApiMessage[] = [
+      { role: "system", content: SYSTEM_PROMPT },
       ...messagesToApiMessages(history),
       { role: "user", content },
     ];
