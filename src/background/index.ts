@@ -150,6 +150,13 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
   }, 100);
 });
 
+// 页面刷新时通知 SidePanel 刷新（content script 会自动重新上报 PAGE_THEME）
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === "complete" && tab.active) {
+    chrome.runtime.sendMessage({ type: "TAB_ACTIVATED", tabId }).catch(() => {});
+  }
+});
+
 async function getPageContext(): Promise<PageContext> {
   try {
     const [tab] = await chrome.tabs.query({
