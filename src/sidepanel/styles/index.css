@@ -106,7 +106,8 @@ html, body {
 /* Tables */
 .prose table {
   font-size: 0.85em;
-  width: auto;
+  width: 100%;
+  table-layout: fixed;
 }
 .prose thead th {
   background: var(--ap-bg-tertiary);
