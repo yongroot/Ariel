@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { marked } from "marked";
 import hljs from "highlight.js";
+import * as echarts from "echarts/core";
 
 import type { Message } from "../../shared/types";
 import "highlight.js/styles/github-dark-dimmed.css";
@@ -228,6 +229,7 @@ function exportTableToTsv(tableEl: HTMLTableElement, idx: number) {
 /** Markdown renderer with syntax highlighting, code copy buttons, and table export buttons */
 function MarkdownRenderer({ content }: { content: string }) {
   const ref = useRef<HTMLDivElement>(null);
+  const chartCache = useRef(new Map<string, echarts.ECharts>());
 
   // Reset table counter per render
   tableCounter = 0;
@@ -239,7 +241,7 @@ function MarkdownRenderer({ content }: { content: string }) {
     if (!container) return;
 
     // Mount ECharts on .chart-placeholder elements
-    const cleanupCharts = mountCharts(container);
+    const cleanupCharts = mountCharts(container, chartCache.current);
 
     const handler = (e: Event) => {
       // Code copy button

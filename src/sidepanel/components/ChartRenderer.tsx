@@ -124,7 +124,7 @@ function toEchartsOption(cfg: SimpleConfig): Record<string, unknown> {
 }
 
 /** Initialize an ECharts instance on a container element */
-export function initChart(container: HTMLElement, rawConfig: unknown): echarts.ECharts | null {
+export function initChart(container: HTMLElement, rawConfig: unknown, animate = true): echarts.ECharts | null {
   let cfg: ChartConfig;
   try {
     cfg = typeof rawConfig === "string" ? JSON.parse(rawConfig) : (rawConfig as ChartConfig);
@@ -140,23 +140,25 @@ export function initChart(container: HTMLElement, rawConfig: unknown): echarts.E
   const option = isNativeConfig(cfg) ? cfg.option : toEchartsOption(cfg as SimpleConfig);
 
   const chart = echarts.init(container);
-  chart.setOption(option);
+  chart.setOption({ ...option, animation: animate });
   return chart;
 }
 
 /** Scan a parent element for `.chart-placeholder` divs and mount charts */
-export function mountCharts(parent: HTMLElement): () => void {
+export function mountCharts(parent: HTMLElement, cache: Map<string, echarts.ECharts>): () => void {
   const placeholders = parent.querySelectorAll<HTMLDivElement>(".chart-placeholder:not([data-chart-initialized])");
   const charts: echarts.ECharts[] = [];
   const observers: ResizeObserver[] = [];
 
   placeholders.forEach((el) => {
-    const encoded = el.getAttribute("data-chart-config");
-    if (!encoded) return;
+    const configKey = el.getAttribute("data-chart-config");
+    if (!configKey) return;
     try {
-      const config = JSON.parse(decodeURIComponent(encoded));
-      const chart = initChart(el, config);
+      const config = JSON.parse(decodeURIComponent(configKey));
+      const isRerender = cache.has(configKey);
+      const chart = initChart(el, config, !isRerender);
       if (chart) {
+        cache.set(configKey, chart);
         el.setAttribute("data-chart-initialized", "1");
         charts.push(chart);
         const ro = new ResizeObserver(() => chart.resize());
