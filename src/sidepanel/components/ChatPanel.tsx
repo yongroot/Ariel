@@ -380,7 +380,7 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
     if (!el) return;
     const { scrollTop, scrollHeight, clientHeight } = el;
     const distFromBottom = scrollHeight - scrollTop - clientHeight;
-    setShowBackToTop(scrollTop > 200);
+    setShowBackToTop(scrollTop > 0);
     if (isStreaming) {
       if (distFromBottom > 50) {
         userScrolledUpRef.current = true;
@@ -408,7 +408,7 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
       {/* 消息列表 */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto p-3"
+        className="flex-1 overflow-y-auto min-h-0 p-3"
         onScroll={handleScroll}
       >
         {messages.map((msg) => (
@@ -450,7 +450,7 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
       {showBackToTop && !isEmpty && (
         <button
           onClick={scrollToTop}
-          className="absolute bottom-16 right-3 z-10 flex h-7 w-7 items-center justify-center rounded-full shadow transition-colors"
+          className="absolute bottom-14 right-3 z-10 flex h-7 w-7 items-center justify-center rounded-full shadow transition-colors"
           style={{ backgroundColor: "var(--ap-bg-tertiary)", color: "var(--ap-text-muted)" }}
           title="回到顶部"
         >

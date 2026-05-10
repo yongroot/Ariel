@@ -252,15 +252,8 @@ function SettingsPanel({
   });
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 overflow-y-auto">
-      {/* 版本信息 */}
-      <div className="rounded px-3 py-2" style={{ backgroundColor: "var(--ap-bg-secondary)", border: "1px solid var(--ap-border)" }}>
-        <div className="flex items-center justify-between">
-          <span className="text-xs" style={{ color: "var(--ap-text-muted)" }}>Ariel v0.0.3</span>
-          <span className="text-xs" style={{ color: "var(--ap-text-muted)" }}>构建: {timeStr}</span>
-        </div>
-      </div>
-
+    <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col gap-4 p-4 overflow-y-auto">
       {/* API 捕获状态 */}
       <div className="rounded px-3 py-2" style={{ backgroundColor: "var(--ap-bg-secondary)", border: "1px solid var(--ap-border)" }}>
         <div className="flex items-center justify-between mb-2">
@@ -339,6 +332,13 @@ function SettingsPanel({
           {saveFeedback ? "已保存 ✓" : "保存设置"}
         </button>
       </form>
+      </div>
+      <p
+        className="flex-shrink-0 text-xs text-center pb-4"
+        style={{ color: "var(--ap-text-muted)", textShadow: "0 1px 1px rgba(0,0,0,0.06)" }}
+      >
+        Ariel v0.0.3 · 构建: {timeStr}
+      </p>
     </div>
   );
 }
