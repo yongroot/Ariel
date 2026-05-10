@@ -180,7 +180,7 @@ function App() {
       </header>
 
       {/* 内容区 */}
-      <div className="relative flex-1">
+      <div className="relative flex-1 flex flex-col overflow-hidden">
         {view === "chat" ? (
           <ChatPanel
             showHistory={showHistory}
@@ -252,7 +252,7 @@ function SettingsPanel({
   });
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col min-h-0">
       <div className="flex flex-1 flex-col gap-4 p-4 overflow-y-auto">
       {/* API 捕获状态 */}
       <div className="rounded px-3 py-2" style={{ backgroundColor: "var(--ap-bg-secondary)", border: "1px solid var(--ap-border)" }}>
