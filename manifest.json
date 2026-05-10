@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Ariel",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "description": "Side Panel AI 助手 — 捕获页面 DOM 和 API 请求，通过自然语言分析网页内容",
   "permissions": ["storage", "sidePanel", "activeTab", "scripting"],
   "side_panel": {

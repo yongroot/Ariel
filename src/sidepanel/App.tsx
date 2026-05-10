@@ -337,7 +337,7 @@ function SettingsPanel({
         className="flex-shrink-0 text-xs text-center pb-4"
         style={{ color: "var(--ap-text-muted)", textShadow: "0 1px 1px rgba(0,0,0,0.06)" }}
       >
-        Ariel v0.0.3 · 构建: {timeStr}
+        Ariel v0.0.4 · 构建: {timeStr}
       </p>
     </div>
   );
