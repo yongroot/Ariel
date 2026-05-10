@@ -47,6 +47,7 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
   const skipAutoScrollRef = useRef(false);
+  const userScrolledUpRef = useRef(false);
 
   // Keep refs in sync
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
@@ -124,12 +125,13 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
     });
   }
 
-  // Auto-scroll to bottom when new content arrives (skip on session switch)
+  // Auto-scroll to bottom when new content arrives (skip on session switch or user scrolled up)
   useEffect(() => {
     if (skipAutoScrollRef.current) {
       skipAutoScrollRef.current = false;
       return;
     }
+    if (userScrolledUpRef.current) return;
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, currentContent, currentReasoning, currentToolCalls]);
 
@@ -371,15 +373,22 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
     portRef.current = null;
   }, [currentContent, currentReasoning, stopTimer]);
 
-  // Scroll tracking for floating buttons
-  const [showScrollBtns, setShowScrollBtns] = useState(false);
+  // Scroll tracking for back-to-top button + smart scroll detection
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
     const { scrollTop, scrollHeight, clientHeight } = el;
     const distFromBottom = scrollHeight - scrollTop - clientHeight;
-    setShowScrollBtns(scrollTop > 200 || distFromBottom > 200);
-  }, []);
+    setShowBackToTop(scrollTop > 200);
+    if (isStreaming) {
+      if (distFromBottom > 50) {
+        userScrolledUpRef.current = true;
+      } else {
+        userScrolledUpRef.current = false;
+      }
+    }
+  }, [isStreaming]);
 
   const scrollToTop = useCallback(() => {
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -437,32 +446,19 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 滚动按钮 */}
-      {showScrollBtns && !isEmpty && (
-        <div className="absolute bottom-16 left-3 right-3 flex justify-between pointer-events-none z-10">
-          <button
-            onClick={scrollToTop}
-            className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full shadow transition-colors"
-            style={{ backgroundColor: "var(--ap-bg-tertiary)", color: "var(--ap-text-muted)" }}
-            title="跳到顶部"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="19" x2="12" y2="5" />
-              <polyline points="5 12 12 5 19 12" />
-            </svg>
-          </button>
-          <button
-            onClick={scrollToBottom}
-            className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full shadow transition-colors"
-            style={{ backgroundColor: "var(--ap-bg-tertiary)", color: "var(--ap-text-muted)" }}
-            title="回到底部"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <polyline points="19 12 12 19 5 12" />
-            </svg>
-          </button>
-        </div>
+      {/* 回到顶部按钮 */}
+      {showBackToTop && !isEmpty && (
+        <button
+          onClick={scrollToTop}
+          className="absolute bottom-16 right-3 z-10 flex h-7 w-7 items-center justify-center rounded-full shadow transition-colors"
+          style={{ backgroundColor: "var(--ap-bg-tertiary)", color: "var(--ap-text-muted)" }}
+          title="回到顶部"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="19" x2="12" y2="5" />
+            <polyline points="5 12 12 5 19 12" />
+          </svg>
+        </button>
       )}
 
       {/* 输入栏 */}
