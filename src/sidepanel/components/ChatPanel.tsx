@@ -176,7 +176,12 @@ export default function ChatPanel({ showHistory, onToggleHistory, newSessionSign
   }, [newSessionSignal]);
 
   const handleSwitchSession = useCallback((id: string) => {
-    if (isStreaming || id === activeIdRef.current) return;
+    if (isStreaming) return;
+    if (id === activeIdRef.current) {
+      // 点击当前会话，只关闭侧栏
+      onToggleHistory();
+      return;
+    }
     skipAutoScrollRef.current = true;
     setActiveSessionId(id);
     chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_SESSION]: id });
