@@ -8,7 +8,7 @@ import { handleInspect, handleRead, extractPageContext } from "./handlers";
 window.addEventListener("message", (event) => {
   if (event.source !== window) return;
   const type = event.data?.type;
-  if (type !== "__ARIEL_CAPTURE__" && type !== "PAGE_THEME") return;
+  if (type !== "__ARIEL_CAPTURE__") return;
 
   try {
     chrome.runtime.sendMessage(event.data.payload ?? event.data);

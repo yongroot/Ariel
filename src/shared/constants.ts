@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
   HISTORY: "ariel_history",
   SESSIONS: "ariel_sessions",
   ACTIVE_SESSION: "ariel_active_session",
+  THEME: "ariel_theme",
 } as const;
 
 export const MESSAGE_TYPES = {

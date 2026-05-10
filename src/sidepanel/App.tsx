@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ChatPanel from "./components/ChatPanel";
 import type { Settings } from "../shared/types";
 import { DEFAULT_SETTINGS, STORAGE_KEYS } from "../shared/constants";
-import { generatePalette, applyPalette } from "../shared/theme";
+import { applyPalette, getPalette, type ThemeMode } from "../shared/theme";
 
 declare const __BUILD_TIME__: number;
 
@@ -10,44 +10,81 @@ const BUILD_TIME = typeof __BUILD_TIME__ === "number"
   ? new Date(__BUILD_TIME__)
   : new Date();
 
+function ThemeToggle({ mode, onToggle }: { mode: ThemeMode; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      className="relative flex items-center rounded-full p-0.5 transition-colors"
+      style={{ width: 48, height: 24, backgroundColor: "var(--ap-bg-tertiary)" }}
+      title={mode === "light" ? "切换深色模式" : "切换浅色模式"}
+    >
+      <span
+        className="flex items-center justify-center rounded-full transition-transform duration-300"
+        style={{
+          width: 20,
+          height: 20,
+          backgroundColor: "var(--ap-accent)",
+          transform: mode === "dark" ? "translateX(24px)" : "translateX(0)",
+        }}
+      />
+      {/* Sun icon */}
+      <svg
+        width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        className="absolute left-[6px]"
+        style={{ color: "var(--ap-text-muted)" }}
+      >
+        <circle cx="12" cy="12" r="5" />
+        <line x1="12" y1="1" x2="12" y2="3" />
+        <line x1="12" y1="21" x2="12" y2="23" />
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+        <line x1="1" y1="12" x2="3" y2="12" />
+        <line x1="21" y1="12" x2="23" y2="12" />
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      </svg>
+      {/* Moon icon */}
+      <svg
+        width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        className="absolute right-[6px]"
+        style={{ color: "var(--ap-text-muted)" }}
+      >
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+    </button>
+  );
+}
+
 function App() {
   const [view, setView] = useState<"chat" | "settings">("chat");
   const [showHistory, setShowHistory] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [newSessionSignal, setNewSessionSignal] = useState(0);
-  const [pageTitle, setPageTitle] = useState<string | null>(null);
-  const lastBgRef = useRef<string | null>(null);
+  const [themeMode, setThemeMode] = useState<ThemeMode>("light");
 
-  // === Adaptive theme + page title (事件驱动) ===
+  // Apply palette on mount + whenever themeMode changes
   useEffect(() => {
-    const poll = () => {
-      try {
-        chrome.runtime.sendMessage({ type: "GET_PAGE_THEME" }, (theme: { bg: string } | null) => {
-          if (theme?.bg && theme.bg !== lastBgRef.current) {
-            lastBgRef.current = theme.bg;
-            const palette = generatePalette(theme.bg);
-            applyPalette(document.documentElement, palette);
-          }
-        });
-        chrome.runtime.sendMessage({ type: "GET_PAGE_CONTEXT" }, (ctx: { title: string } | undefined) => {
-          if (ctx?.title) {
-            const t = ctx.title.trim();
-            setPageTitle(t.length > 20 ? t.slice(0, 20) + "…" : t);
-          } else {
-            setPageTitle(null);
-          }
-        });
-      } catch { /* ignore */ }
-    };
-    poll(); // 初始 poll 一次
+    applyPalette(document.documentElement, getPalette(themeMode));
+  }, [themeMode]);
 
-    const handleMessage = (message: { type: string }) => {
-      if (message.type === "TAB_ACTIVATED") {
-        poll();
+  // Load persisted theme on mount
+  useEffect(() => {
+    chrome.storage.local.get(STORAGE_KEYS.THEME, (result) => {
+      const stored = result[STORAGE_KEYS.THEME] as ThemeMode | undefined;
+      if (stored === "light" || stored === "dark") {
+        setThemeMode(stored);
       }
-    };
-    chrome.runtime.onMessage.addListener(handleMessage);
-    return () => chrome.runtime.onMessage.removeListener(handleMessage);
+    });
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setThemeMode((prev) => {
+      const next = prev === "light" ? "dark" : "light";
+      chrome.storage.local.set({ [STORAGE_KEYS.THEME]: next });
+      return next;
+    });
   }, []);
 
   const loadSettings = async () => {
@@ -98,20 +135,7 @@ function App() {
         className="flex items-center justify-between px-3 py-2"
         style={{ borderBottom: "1px solid var(--ap-border)" }}
       >
-        <h1 className="flex items-center gap-1.5 text-sm font-semibold tracking-wide" style={{ color: "var(--ap-text-secondary)" }}>
-          {pageTitle ? (
-            <>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 opacity-60">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="2" y1="12" x2="22" y2="12" />
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-              </svg>
-              <span className="truncate max-w-[180px]">{pageTitle}</span>
-            </>
-          ) : (
-            "Ariel"
-          )}
-        </h1>
+        <ThemeToggle mode={themeMode} onToggle={toggleTheme} />
         <div className="flex items-center gap-0.5">
           <button
             onClick={handleNewSession}

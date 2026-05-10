@@ -4,9 +4,6 @@ import { STORAGE_KEYS, DEFAULT_SETTINGS } from "../shared/constants";
 import type { Settings, PageContext, Message } from "../shared/types";
 import { handleCapturedRequest, getCapturedCount, getCapturedList, clearCaptured } from "./tools/registry";
 
-// Per-tab theme cache
-const tabThemes = new Map<number, { bg: string }>();
-
 // 打开 Side Panel
 chrome.action.onClicked.addListener((tab) => {
   if (tab.windowId != null) {
@@ -101,61 +98,9 @@ chrome.runtime.onMessage.addListener(
         clearCaptured();
         sendResponse({ ok: true });
         break;
-
-      case "PAGE_THEME":
-        // Cache theme from content script, keyed by sender tab
-        if (_sender.tab?.id != null) {
-          tabThemes.set(_sender.tab.id, message.theme);
-        }
-        sendResponse({ ok: true });
-        break;
-
-      case "GET_PAGE_THEME":
-        // Sidepanel polls for current tab's theme
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-          const tabId = tabs[0]?.id;
-          sendResponse(tabId != null ? tabThemes.get(tabId) ?? null : null);
-        });
-        return true;
     }
   }
 );
-
-// Tab 切换时采样新 tab 主题，再通知 SidePanel
-chrome.tabs.onActivated.addListener((activeInfo) => {
-  // 注入采样函数到新激活的 tab，让 content script 上报 PAGE_THEME 到 SW 缓存
-  chrome.scripting.executeScript({
-    target: { tabId: activeInfo.tabId },
-    func: () => {
-      const computedStyle = getComputedStyle(document.documentElement);
-      let bg = computedStyle.backgroundColor;
-      if (!bg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") {
-        const bodyStyle = getComputedStyle(document.body);
-        bg = bodyStyle.backgroundColor;
-      }
-      if (!bg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") {
-        bg = "rgb(255, 255, 255)";
-      }
-      window.postMessage({ type: "__ARIEL_CAPTURE__", payload: { type: "PAGE_THEME", theme: { bg } } }, "*");
-    },
-  }).catch(() => {
-    // 某些页面（chrome://、about:）无法注入，忽略
-  });
-
-  // 等待采样完成后再广播 TAB_ACTIVATED
-  setTimeout(() => {
-    chrome.runtime.sendMessage({ type: "TAB_ACTIVATED", tabId: activeInfo.tabId }).catch(() => {
-      // SidePanel 可能未打开，忽略
-    });
-  }, 100);
-});
-
-// 页面刷新时通知 SidePanel 刷新（content script 会自动重新上报 PAGE_THEME）
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === "complete" && tab.active) {
-    chrome.runtime.sendMessage({ type: "TAB_ACTIVATED", tabId }).catch(() => {});
-  }
-});
 
 async function getPageContext(): Promise<PageContext> {
   try {

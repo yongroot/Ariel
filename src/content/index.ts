@@ -1,4 +1,4 @@
-// Content Script (MAIN world): fetch/XHR 拦截 + 页面主题采样
+// Content Script (MAIN world): fetch/XHR 拦截
 // 注意：此文件运行在页面的 JS 上下文中，不能使用 chrome.* API
 // 通过 window.postMessage 将捕获的数据发给 bridge.ts（ISOLATED world）
 
@@ -8,29 +8,6 @@ function isJsonContentType(contentType: string): boolean {
 
 function sendToBridge(payload: object) {
   window.postMessage({ type: "__ARIEL_CAPTURE__", payload }, "*");
-}
-
-// === 页面主题采样 ===
-function samplePageTheme() {
-  const computedStyle = getComputedStyle(document.documentElement);
-
-  let bg = computedStyle.backgroundColor;
-  if (!bg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") {
-    const bodyStyle = getComputedStyle(document.body);
-    bg = bodyStyle.backgroundColor;
-  }
-  if (!bg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") {
-    bg = "rgb(255, 255, 255)";
-  }
-
-  sendToBridge({ type: "PAGE_THEME", theme: { bg } });
-}
-
-// 延迟采样，等页面样式加载完成
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => setTimeout(samplePageTheme, 500));
-} else {
-  setTimeout(samplePageTheme, 500);
 }
 
 // === Fetch 拦截 ===

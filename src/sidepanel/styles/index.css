@@ -1,47 +1,7 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* Ariel CSS variable theming — all values dynamically set by JS */
-/* :root values are fallback only for initial render before JS runs */
-/* Default to light theme (most web pages are light) to minimize flash */
-:root {
-  --ap-bg-primary: #ffffff;
-  --ap-bg-secondary: #f4f4f5;
-  --ap-bg-tertiary: #e4e4e7;
-  --ap-text-primary: #18181b;
-  --ap-text-secondary: #52525b;
-  --ap-text-muted: #a1a1aa;
-  --ap-border: #e4e4e7;
-  --ap-accent: #3b82f6;
-  --ap-accent-hover: #2563eb;
-  --ap-accent-text: #ffffff;
-  --ap-user-bubble: #3b82f6;
-  --ap-ai-bubble: #f4f4f5;
-  --ap-code-bg: #f4f4f5;
-  --ap-input-bg: #ffffff;
-  --ap-input-border: #e4e4e7;
-}
-
-/* Respect system dark mode as fallback */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ap-bg-primary: #18181b;
-    --ap-bg-secondary: #27272a;
-    --ap-bg-tertiary: #3f3f46;
-    --ap-text-primary: #fafafa;
-    --ap-text-secondary: #a1a1aa;
-    --ap-text-muted: #71717a;
-    --ap-border: #3f3f46;
-    --ap-accent: #3b82f6;
-    --ap-accent-hover: #2563eb;
-    --ap-accent-text: #ffffff;
-    --ap-user-bubble: #2563eb;
-    --ap-ai-bubble: #27272a;
-    --ap-code-bg: #09090b;
-    --ap-input-bg: #27272a;
-    --ap-input-border: #3f3f46;
-  }
-}
+/* Ariel CSS variable theming — all values dynamically set by JS via applyPalette */
 
 html, body {
   margin: 0;
