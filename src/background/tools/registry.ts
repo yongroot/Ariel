@@ -4,8 +4,9 @@ import { capturedApiTool, handleCapturedRequest, getCapturedCount, getCapturedLi
 import { analyzeDataTool } from "./analyze-data";
 import { analyzeApisTool, manageKnowledgeTool } from "./api-knowledge-tools";
 import { invokeApiTool } from "./invoke-api";
+import { executeWorkflowTool } from "./workflow-executor";
 
-const tools: ToolDefinition[] = [inspectTool, readTool, capturedApiTool, analyzeDataTool, analyzeApisTool, manageKnowledgeTool, invokeApiTool];
+const tools: ToolDefinition[] = [inspectTool, readTool, capturedApiTool, analyzeDataTool, analyzeApisTool, manageKnowledgeTool, invokeApiTool, executeWorkflowTool];
 
 export function getToolDefinitions() {
   return tools.map((t) => ({

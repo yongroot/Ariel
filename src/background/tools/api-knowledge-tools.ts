@@ -5,7 +5,7 @@
  */
 
 import type { ToolDefinition } from '../../shared/types';
-import type { ApiRecipe, KnowledgeBaseExport } from '../../shared/api-knowledge-types';
+import type { ApiRecipe, ApiWorkflow, KnowledgeBaseExport } from '../../shared/api-knowledge-types';
 import {
   getCapturedRequests,
   clearCapturedRequests,
@@ -17,6 +17,9 @@ import {
   importKnowledgeBase,
   getAllSites,
   generateApiCatalog,
+  getWorkflowsBySite,
+  saveWorkflow,
+  deleteWorkflow,
 } from '../api-knowledge-store';
 import { analyzeRequests } from './api-analyzer';
 
@@ -96,10 +99,12 @@ export const manageKnowledgeTool: ToolDefinition = {
     properties: {
       action: {
         type: 'string',
-        enum: ['list', 'confirm', 'delete', 'export', 'import', 'analyze_and_confirm'],
+        enum: ['list', 'confirm', 'delete', 'export', 'import', 'analyze_and_confirm',
+               'list_workflows', 'create_workflow', 'delete_workflow'],
         description:
           'list: 列出站点知识; confirm: 确认草稿; delete: 删除条目; ' +
-          'export: 导出知识库; import: 导入知识库; analyze_and_confirm: 分析并一步确认',
+          'export: 导出知识库; import: 导入知识库; analyze_and_confirm: 分析并一步确认; ' +
+          'list_workflows: 列出编排流程; create_workflow: 创建编排流程; delete_workflow: 删除编排流程',
       },
       site: {
         type: 'string',
@@ -112,6 +117,14 @@ export const manageKnowledgeTool: ToolDefinition = {
       export_data: {
         type: 'string',
         description: '导入的 JSON 数据（import 时必填）',
+      },
+      workflow_id: {
+        type: 'string',
+        description: 'Workflow ID，delete_workflow 时必填',
+      },
+      workflow: {
+        type: 'object',
+        description: 'Workflow 定义（create_workflow 时必填），包含 name, site, steps',
       },
     },
     required: ['action'],
@@ -132,6 +145,12 @@ export const manageKnowledgeTool: ToolDefinition = {
         return handleImport(args.export_data as string);
       case 'analyze_and_confirm':
         return handleAnalyzeAndConfirm(args.site as string);
+      case 'list_workflows':
+        return handleListWorkflows(args.site as string);
+      case 'create_workflow':
+        return handleCreateWorkflow(args.workflow as Record<string, unknown> | undefined);
+      case 'delete_workflow':
+        return handleDeleteWorkflow(args.workflow_id as string);
       default:
         return { error: `未知操作: ${action}` };
     }
@@ -292,4 +311,89 @@ async function handleAnalyzeAndConfirm(site: string) {
     })),
     message: `分析完成，已将 ${saved.length} 个接口知识保存到知识库`,
   };
+}
+
+// ============================================================
+// Workflow Handlers
+// ============================================================
+
+async function handleListWorkflows(site?: string) {
+  if (!site) {
+    return { error: 'list_workflows 操作需要提供 site 参数' };
+  }
+
+  const workflows = await getWorkflowsBySite(site);
+  if (workflows.length === 0) {
+    return { message: `${site} 尚无编排流程`, workflows: [] };
+  }
+
+  return {
+    site,
+    workflows: workflows.map((w) => ({
+      id: w.id,
+      name: w.name,
+      description: w.description,
+      steps_count: w.steps.length,
+      steps: w.steps.map((s, i) => ({
+        step: i + 1,
+        recipe_id: s.recipe_id,
+        fixed_params: s.fixed_params,
+        bindings: s.bindings,
+      })),
+    })),
+  };
+}
+
+async function handleCreateWorkflow(workflowData?: Record<string, unknown>) {
+  if (!workflowData) {
+    return { error: 'create_workflow 操作需要提供 workflow 参数' };
+  }
+
+  const name = workflowData.name as string | undefined;
+  const site = workflowData.site as string | undefined;
+  const steps = workflowData.steps as Array<{ recipe_id: string; fixed_params?: Record<string, string>; bindings?: Record<string, string> }> | undefined;
+
+  if (!name || !site || !steps?.length) {
+    return { error: 'workflow 必须包含 name, site 和至少一个 step' };
+  }
+
+  // 验证 recipe 存在
+  for (const step of steps) {
+    const recipe = await getRecipe(step.recipe_id);
+    if (!recipe) {
+      return { error: `步骤引用了不存在的 recipe: ${step.recipe_id}` };
+    }
+  }
+
+  const workflowId = `wf_${site}_${Date.now()}`;
+  const workflow: ApiWorkflow = {
+    version: 1,
+    id: workflowId,
+    site,
+    name,
+    description: (workflowData.description as string) ?? '',
+    steps: steps.map((s) => ({
+      recipe_id: s.recipe_id,
+      fixed_params: s.fixed_params ?? {},
+      bindings: s.bindings ?? {},
+    })),
+  };
+
+  await saveWorkflow(workflow);
+
+  return {
+    created: workflowId,
+    name,
+    steps_count: workflow.steps.length,
+    message: `已创建编排流程 "${name}"，包含 ${workflow.steps.length} 个步骤`,
+  };
+}
+
+async function handleDeleteWorkflow(workflowId?: string) {
+  if (!workflowId) {
+    return { error: 'delete_workflow 操作需要提供 workflow_id 参数' };
+  }
+
+  await deleteWorkflow(workflowId);
+  return { deleted: workflowId };
 }
