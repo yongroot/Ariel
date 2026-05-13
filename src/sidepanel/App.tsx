@@ -214,6 +214,7 @@ function SettingsPanel({
   }> | null>(null);
   const [learningMode, setLearningModeState] = useState(false);
   const [kbStats, setKbStats] = useState<{ sites: number; recipes: number; workflows: number } | null>(null);
+  const [kbFeedback, setKbFeedback] = useState<string | null>(null);
 
   const refreshCaptured = useCallback(() => {
     try {
@@ -258,6 +259,53 @@ function SettingsPanel({
       });
     } catch { /* ignore */ }
   }, [learningMode]);
+
+  const handleExportKb = useCallback(() => {
+    try {
+      chrome.runtime.sendMessage({ type: "GET_KB_EXPORT" }, (res: any) => {
+        if (res?.error) {
+          setKbFeedback("导出失败");
+          setTimeout(() => setKbFeedback(null), 2000);
+          return;
+        }
+        const blob = new Blob([JSON.stringify(res, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `ariel-kb-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setKbFeedback("已导出");
+        setTimeout(() => setKbFeedback(null), 2000);
+      });
+    } catch { /* ignore */ }
+  }, []);
+
+  const handleImportKb = useCallback(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          chrome.runtime.sendMessage({ type: "IMPORT_KB", data: reader.result as string }, (res: any) => {
+            if (res?.ok) {
+              setKbFeedback(`已导入 ${res.imported} 条`);
+              refreshKbStats();
+            } else {
+              setKbFeedback(res?.error ?? "导入失败");
+            }
+            setTimeout(() => setKbFeedback(null), 2000);
+          });
+        } catch { /* ignore */ }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }, [refreshKbStats]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -310,6 +358,46 @@ function SettingsPanel({
             <span className="text-xs" style={{ color: "var(--ap-text-muted)" }}>
               {kbStats.sites} 个站点
             </span>
+          </div>
+        )}
+      </div>
+
+      {/* 知识库管理 */}
+      <div className="rounded px-3 py-2" style={{ backgroundColor: "var(--ap-bg-secondary)", border: "1px solid var(--ap-border)" }}>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-medium" style={{ color: "var(--ap-text-secondary)" }}>知识库管理</span>
+          {kbFeedback && (
+            <span className="text-xs" style={{ color: "var(--ap-accent)" }}>{kbFeedback}</span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportKb}
+            className="flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors"
+            style={{ backgroundColor: "var(--ap-bg-tertiary)", color: "var(--ap-text-secondary)" }}
+          >
+            导出
+          </button>
+          <button
+            onClick={handleImportKb}
+            className="flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors"
+            style={{ backgroundColor: "var(--ap-bg-tertiary)", color: "var(--ap-text-secondary)" }}
+          >
+            导入
+          </button>
+        </div>
+        {kbStats && (kbStats.recipes > 0 || kbStats.workflows > 0) && (
+          <div className="flex gap-3 mt-2">
+            {kbStats.recipes > 0 && (
+              <span className="text-xs" style={{ color: "var(--ap-text-muted)" }}>
+                {kbStats.recipes} 个接口
+              </span>
+            )}
+            {kbStats.workflows > 0 && (
+              <span className="text-xs" style={{ color: "var(--ap-text-muted)" }}>
+                {kbStats.workflows} 个编排
+              </span>
+            )}
           </div>
         )}
       </div>

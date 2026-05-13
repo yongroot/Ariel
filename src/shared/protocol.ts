@@ -18,6 +18,8 @@ export type PanelMessage =
   | { type: "GET_LEARNING_MODE" }
   | { type: "SET_LEARNING_MODE"; enabled: boolean }
   | { type: "GET_KB_STATS" }
+  | { type: "GET_KB_EXPORT" }
+  | { type: "IMPORT_KB"; data: string }
   | { type: "CLEAR_CAPTURED" };
 
 // Service Worker → SidePanel (流式)

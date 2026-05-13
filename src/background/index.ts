@@ -9,6 +9,8 @@ import {
   addCapturedRequest,
   getKnowledgeBase,
   shouldFilterUrl,
+  exportKnowledgeBase,
+  importKnowledgeBase,
 } from "./api-knowledge-store";
 import type { CapturedRequest } from "../shared/api-knowledge-types";
 
@@ -150,6 +152,22 @@ chrome.runtime.onMessage.addListener(
             recipes: recipeCount,
             workflows: workflowCount,
           });
+        })();
+        return true;
+
+      case "GET_KB_EXPORT":
+        exportKnowledgeBase().then(sendResponse).catch(() => sendResponse({ error: '导出失败' }));
+        return true;
+
+      case "IMPORT_KB":
+        (async () => {
+          try {
+            const data = JSON.parse(message.data);
+            const count = await importKnowledgeBase(data);
+            sendResponse({ ok: true, imported: count });
+          } catch (e) {
+            sendResponse({ ok: false, error: String(e) });
+          }
         })();
         return true;
     }

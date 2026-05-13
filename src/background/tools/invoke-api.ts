@@ -282,7 +282,10 @@ export const invokeApiTool: ToolDefinition = {
   description:
     '调用知识库中已掌握的 API 接口，获取实时数据或执行操作。' +
     '请求在用户当前页面标签中执行，自动继承页面 cookie 认证。' +
-    '写操作（POST/PUT/DELETE）需要用户确认后才会执行。',
+    '写操作（POST/PUT/DELETE）需要用户确认后才会执行。\n\n' +
+    '调用接口后，在回答用户时请在末尾标注数据来源。格式：\n' +
+    '> 数据来源：{recipe name} ({actual_url})，查询时间：{当前时间}\n\n' +
+    '如果接口调用失败（401/403），请提示用户："接口认证可能已失效，请刷新页面后重试。如果问题持续，请重新登录系统。"',
   parameters: {
     type: 'object',
     properties: {
@@ -409,6 +412,7 @@ export const invokeApiTool: ToolDefinition = {
         data: success ? data : undefined,
         error: errorMsg ?? undefined,
         recipe_id: recipeId,
+        recipe_name: recipe.name,
         actual_url: url,
         status: response.status,
       } satisfies InvokeApiResult;

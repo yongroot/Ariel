@@ -103,8 +103,7 @@ export async function saveRecipe(recipe: ApiRecipe): Promise<void> {
   const isNew = !kb.recipes[recipe.id];
 
   if (isNew && siteRecipes.length >= MAX_RECIPES_PER_SITE) {
-    // 淘汰最久未用的 recipe
-    await evictOldestRecipe(kb, recipe.site);
+    evictOldestRecipe(kb, recipe.site);
   }
 
   kb.recipes[recipe.id] = recipe;
@@ -295,8 +294,8 @@ export async function importKnowledgeBase(data: KnowledgeBaseExport): Promise<nu
 // 辅助函数
 // ============================================================
 
-/** 淘汰最久未使用的 recipe */
-async function evictOldestRecipe(kb: ApiKnowledgeBase, site: string): Promise<void> {
+/** 淘汰最久未使用的 recipe（直接在传入的 kb 对象上操作，避免 stale 引用） */
+function evictOldestRecipe(kb: ApiKnowledgeBase, site: string): void {
   const siteRecipes = Object.values(kb.recipes)
     .filter((r) => r.site === site)
     .sort((a, b) => a.last_used - b.last_used);
@@ -304,7 +303,15 @@ async function evictOldestRecipe(kb: ApiKnowledgeBase, site: string): Promise<vo
   if (siteRecipes.length > 0) {
     const toEvict = siteRecipes[0];
     // 清除悬空引用
-    await deleteRecipe(toEvict.id);
+    for (const recipe of Object.values(kb.recipes)) {
+      if (recipe.related?.depends_on?.includes(toEvict.id)) {
+        recipe.related.depends_on = recipe.related.depends_on.filter((rid) => rid !== toEvict.id);
+      }
+      if (recipe.related?.detail_of === toEvict.id) {
+        delete recipe.related.detail_of;
+      }
+    }
+    delete kb.recipes[toEvict.id];
   }
 }
 

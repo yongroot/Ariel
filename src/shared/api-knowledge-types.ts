@@ -217,6 +217,8 @@ export interface InvokeApiResult {
   error?: string;
   /** 调用的 recipe id */
   recipe_id: string;
+  /** 调用的 recipe 名称（用于数据溯源标注） */
+  recipe_name?: string;
   /** 实际请求的 URL */
   actual_url: string;
   /** 响应 status */
