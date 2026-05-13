@@ -2,6 +2,7 @@ import type { StreamEvent } from "../shared/protocol";
 import type { Message } from "../shared/types";
 import { getSettings } from "./index";
 import { executeTool, getToolDefinitions } from "./tools/registry";
+import { getETLD1, generateApiCatalog } from "./api-knowledge-store";
 import type { ToolCall } from "../shared/types";
 
 interface OpenAIToolCall {
@@ -111,8 +112,24 @@ export async function handleChatSend(
       return;
     }
 
+    // 动态构建 system prompt：追加当前站点的接口目录
+    let systemPrompt = SYSTEM_PROMPT;
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.url) {
+        const hostname = new URL(tab.url).hostname;
+        const site = getETLD1(hostname);
+        const catalog = await generateApiCatalog(site);
+        if (catalog) {
+          systemPrompt += `\n\n## 已掌握的接口查询\n\n以下是当前站点已掌握的 API 接口。你可以使用 invoke_api 工具调用它们。\n\n${catalog}\n注意：\n- 只读接口(✅)可直接调用\n- 写操作(⚠️)需要先获取用户确认\n- 如果 invoke_api 返回 needs_confirmation=true，请向用户展示操作详情并请求确认`;
+        }
+      }
+    } catch {
+      // 获取 tab URL 或生成目录失败时不影响主流程
+    }
+
     const apiMessages: ApiMessage[] = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
       ...messagesToApiMessages(history),
       { role: "user", content },
     ];

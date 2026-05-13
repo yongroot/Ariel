@@ -3,8 +3,9 @@ import { inspectTool, readTool } from "./page-tools";
 import { capturedApiTool, handleCapturedRequest, getCapturedCount, getCapturedList, clearCaptured } from "./captured-api";
 import { analyzeDataTool } from "./analyze-data";
 import { analyzeApisTool, manageKnowledgeTool } from "./api-knowledge-tools";
+import { invokeApiTool } from "./invoke-api";
 
-const tools: ToolDefinition[] = [inspectTool, readTool, capturedApiTool, analyzeDataTool, analyzeApisTool, manageKnowledgeTool];
+const tools: ToolDefinition[] = [inspectTool, readTool, capturedApiTool, analyzeDataTool, analyzeApisTool, manageKnowledgeTool, invokeApiTool];
 
 export function getToolDefinitions() {
   return tools.map((t) => ({
