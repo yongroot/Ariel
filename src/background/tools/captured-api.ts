@@ -9,6 +9,8 @@ interface CapturedRequest {
   contentType: string;
   responseBody?: string;
   requestBody?: string;
+  requestHeaders?: Record<string, string>;
+  responseHeaders?: Record<string, string>;
   timestamp: number;
   tabId: number;
 }

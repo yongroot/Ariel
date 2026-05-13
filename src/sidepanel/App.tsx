@@ -212,6 +212,8 @@ function SettingsPanel({
     statusCode: number;
     timestamp: number;
   }> | null>(null);
+  const [learningMode, setLearningModeState] = useState(false);
+  const [kbStats, setKbStats] = useState<{ sites: number; recipes: number; workflows: number } | null>(null);
 
   const refreshCaptured = useCallback(() => {
     try {
@@ -224,9 +226,21 @@ function SettingsPanel({
     } catch { /* SW 未就绪 */ }
   }, []);
 
+  const refreshKbStats = useCallback(() => {
+    try {
+      chrome.runtime.sendMessage({ type: "GET_KB_STATS" }, (res: any) => {
+        if (res) {
+          setLearningModeState(res.learningMode ?? false);
+          setKbStats({ sites: res.sites, recipes: res.recipes, workflows: res.workflows });
+        }
+      });
+    } catch { /* SW 未就绪 */ }
+  }, []);
+
   useEffect(() => {
     refreshCaptured();
-  }, [refreshCaptured]);
+    refreshKbStats();
+  }, [refreshCaptured, refreshKbStats]);
 
   const handleClearCaptured = useCallback(() => {
     try {
@@ -235,6 +249,15 @@ function SettingsPanel({
       });
     } catch { /* ignore */ }
   }, [refreshCaptured]);
+
+  const handleToggleLearningMode = useCallback(() => {
+    const next = !learningMode;
+    try {
+      chrome.runtime.sendMessage({ type: "SET_LEARNING_MODE", enabled: next }, () => {
+        setLearningModeState(next);
+      });
+    } catch { /* ignore */ }
+  }, [learningMode]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -254,6 +277,43 @@ function SettingsPanel({
   return (
     <div className="flex flex-1 flex-col min-h-0">
       <div className="flex flex-1 flex-col gap-4 p-4 overflow-y-auto">
+
+      {/* 学习模式 */}
+      <div className="rounded px-3 py-2" style={{ backgroundColor: "var(--ap-bg-secondary)", border: `1px solid ${learningMode ? "#22c55e" : "var(--ap-border)"}` }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`inline-block w-2 h-2 rounded-full ${learningMode ? "bg-green-500" : "bg-gray-400"}`} />
+            <span className="text-xs font-medium" style={{ color: "var(--ap-text-secondary)" }}>学习模式</span>
+          </div>
+          <button
+            onClick={handleToggleLearningMode}
+            className="relative flex items-center rounded-full p-0.5 transition-colors"
+            style={{ width: 36, height: 20, backgroundColor: learningMode ? "#22c55e" : "var(--ap-bg-tertiary)" }}
+          >
+            <span
+              className="flex items-center justify-center rounded-full bg-white transition-transform duration-200"
+              style={{ width: 16, height: 16, transform: learningMode ? "translateX(16px)" : "translateX(0)" }}
+            />
+          </button>
+        </div>
+        <p className="text-xs mt-1" style={{ color: "var(--ap-text-muted)" }}>
+          {learningMode
+            ? "Ariel 正在学习和记录接口信息，帮助你更快获取数据"
+            : "开启后 Ariel 将自动学习你访问的接口"
+          }
+        </p>
+        {kbStats && kbStats.recipes > 0 && (
+          <div className="flex gap-3 mt-2">
+            <span className="text-xs" style={{ color: "var(--ap-text-muted)" }}>
+              已掌握 {kbStats.recipes} 个查询
+            </span>
+            <span className="text-xs" style={{ color: "var(--ap-text-muted)" }}>
+              {kbStats.sites} 个站点
+            </span>
+          </div>
+        )}
+      </div>
+
       {/* API 捕获状态 */}
       <div className="rounded px-3 py-2" style={{ backgroundColor: "var(--ap-bg-secondary)", border: "1px solid var(--ap-border)" }}>
         <div className="flex items-center justify-between mb-2">

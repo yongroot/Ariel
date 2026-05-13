@@ -3,6 +3,14 @@ import { handleChatSend, abortChat } from "./llm";
 import { STORAGE_KEYS, DEFAULT_SETTINGS } from "../shared/constants";
 import type { Settings, PageContext, Message } from "../shared/types";
 import { handleCapturedRequest, getCapturedCount, getCapturedList, clearCaptured } from "./tools/registry";
+import {
+  isLearningMode,
+  setLearningMode as kbSetLearningMode,
+  addCapturedRequest,
+  getKnowledgeBase,
+  shouldFilterUrl,
+} from "./api-knowledge-store";
+import type { CapturedRequest } from "../shared/api-knowledge-types";
 
 // 打开 Side Panel
 chrome.action.onClicked.addListener((tab) => {
@@ -79,6 +87,28 @@ chrome.runtime.onMessage.addListener(
 
       case "CAPTURED_API":
         handleCapturedRequest({ ...message, tabId: _sender.tab?.id ?? 0 });
+
+        // 学习模式：额外存入知识库
+        (async () => {
+          try {
+            const learningEnabled = await isLearningMode();
+            if (learningEnabled && !shouldFilterUrl(message.url)) {
+              const capturedReq: CapturedRequest = {
+                captured_at: message.timestamp,
+                url: message.url,
+                method: message.method,
+                request_headers: message.requestHeaders ?? {},
+                request_body: message.requestBody,
+                response_status: message.statusCode,
+                response_headers: message.responseHeaders ?? {},
+                response_body: message.responseBody,
+                tab_id: _sender.tab?.id ?? 0,
+              };
+              await addCapturedRequest(capturedReq);
+            }
+          } catch { /* 忽略知识库写入错误 */ }
+        })();
+
         sendResponse({ ok: true });
         break;
 
@@ -98,6 +128,30 @@ chrome.runtime.onMessage.addListener(
         clearCaptured();
         sendResponse({ ok: true });
         break;
+
+      // === 学习模式 & 知识库 ===
+      case "GET_LEARNING_MODE":
+        isLearningMode().then(sendResponse);
+        return true;
+
+      case "SET_LEARNING_MODE":
+        kbSetLearningMode(message.enabled).then(() => sendResponse({ ok: true }));
+        return true;
+
+      case "GET_KB_STATS":
+        (async () => {
+          const kb = await getKnowledgeBase();
+          const sites = Object.keys(kb.sites);
+          const recipeCount = Object.keys(kb.recipes).length;
+          const workflowCount = Object.keys(kb.workflows).length;
+          sendResponse({
+            learningMode: kb.learning_mode,
+            sites: sites.length,
+            recipes: recipeCount,
+            workflows: workflowCount,
+          });
+        })();
+        return true;
     }
   }
 );

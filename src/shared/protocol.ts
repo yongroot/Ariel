@@ -13,7 +13,12 @@ export type PanelMessage =
   | { type: "GET_CAPTURED_COUNT" }
   | { type: "GET_CAPTURED_LIST" }
   // Content Script → SW: 推送捕获的 API 请求
-  | { type: "CAPTURED_API"; id: string; url: string; method: string; statusCode: number; contentType: string; responseBody?: string; requestBody?: string; timestamp: number };
+  | { type: "CAPTURED_API"; id: string; url: string; method: string; statusCode: number; contentType: string; responseBody?: string; requestBody?: string; requestHeaders?: Record<string, string>; responseHeaders?: Record<string, string>; timestamp: number }
+  // 学习模式控制
+  | { type: "GET_LEARNING_MODE" }
+  | { type: "SET_LEARNING_MODE"; enabled: boolean }
+  | { type: "GET_KB_STATS" }
+  | { type: "CLEAR_CAPTURED" };
 
 // Service Worker → SidePanel (流式)
 export type StreamEvent =
